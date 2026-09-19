@@ -1,0 +1,7 @@
+# workspace.yaml
+load_from:
+  - grpc_server:
+      host: user-code-service
+      port: 4000
+      location_name: "production_pipelines"
+

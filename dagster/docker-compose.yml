@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # 1. Persistent Storage Layer
+  postgres_db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: dagster_user
+      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_DB: dagster_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # 2. Pipeline Execution Server Isolation
+  user-code-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_USER: dagster_user
+      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_DB: dagster_db
+      POSTGRES_HOSTNAME: postgres_db
+    depends_on:
+      - postgres_db
+
+  # 3. Web UI Visual Element Engine
+  dagster_webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000"]
+    volumes:
+      - ./dagster.yaml:/opt/dagster/app/dagster.yaml
+      - ./workspace.yaml:/opt/dagster/app/workspace.yaml
+    environment:
+      DAGSTER_HOME: /opt/dagster/app
+      POSTGRES_USER: dagster_user
+      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_DB: dagster_db
+      POSTGRES_HOSTNAME: postgres_db
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres_db
+      - user-code-service
+
+  # 4. Engine Automation Manager (Schedules & Sensors)
+  dagster_daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["dagster-daemon", "run"]
+    volumes:
+      - ./dagster.yaml:/opt/dagster/app/dagster.yaml
+      - ./workspace.yaml:/opt/dagster/app/workspace.yaml
+    environment:
+      DAGSTER_HOME: /opt/dagster/app
+      POSTGRES_USER: dagster_user
+      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_DB: dagster_db
+      POSTGRES_HOSTNAME: postgres_db
+    depends_on:
+      - postgres_db
+      - user-code-service
+
+volumes:
+  postgres_data:
+

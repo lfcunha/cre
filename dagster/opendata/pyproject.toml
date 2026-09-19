@@ -1,0 +1,29 @@
+[project]
+name = "opendata"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+dependencies = [
+    "dagster",
+    "dagster-cloud",
+    "requests",
+    "python-dotenv",
+    "zstandard",
+    "pyarrow",
+    "boto3",
+]
+
+[dependency-groups]
+dev = [
+    "dagster-webserver",
+    "pytest",
+]
+
+[build-system]
+requires = ["hatchling>=1.19.0"]
+build-backend = "hatchling.build"
+
+[tool.dagster]
+module_name = "opendata.definitions"
+code_location_name = "opendata"

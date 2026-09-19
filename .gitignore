@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.tmp_dagster_home*/
+dagster/opendata/opendata/scripts/raw_data/
+dagster/opendata/opendata/scripts/checkpoints/
+dagster/opendata/opendata/scripts/parquet_cache/
+dagster/opendata/.dagster_home/

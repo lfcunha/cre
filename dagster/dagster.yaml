@@ -1,0 +1,18 @@
+# dagster.yaml
+storage:
+  postgres:
+    postgres_db:
+      username: 
+        env: postgres
+      password: 
+        env: password
+      hostname: 
+        env: localhost
+      db_name: 
+        env: cre
+      port: 5432
+
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+

@@ -60,7 +60,7 @@ Opens the Dagster UI at http://localhost:3000. This wrapper sets `DAGSTER_HOME` 
 
 Two ways to pull, depending on what you need:
 
-**Via Dagster (materialize an asset)** — the normal path. Checks Socrata's dataset-level watermark first and skips the fetch if nothing's changed, does incremental `--since`-filtered pulls where the dataset supports it, and on success converts the raw pull to Parquet and syncs it to the S3 lake. Also runs automatically on the daily 6am (America/New_York) schedule once `dagster dev`'s daemon is up.
+**Via Dagster (materialize an asset)** — a manual/ad hoc pull. Always does a real pull (full, or `--since`-filtered where the config provides it) and, on success, converts the raw pull to Parquet and syncs it to the S3 lake.
 
 ```bash
 cd dagster/opendata
@@ -71,7 +71,9 @@ uv run dagster asset materialize --select '*' -m opendata.definitions           
 
 Or via the UI: Assets → select one or more → Materialize.
 
-**Standalone script** — for manual/ad hoc pulls or debugging a single dataset without going through Dagster. Same underlying pull logic (auth, zstd compression, checkpoint/resume), but **no watermark check and no lake sync** — those only exist in the Dagster asset wrapper. A standalone run always does a real pull regardless of whether the source actually changed, and only lands the raw `.ndjson.zst` file.
+**Automatically, via each dataset's sensor** — the normal path in practice. Each dataset has its own `{dataset}_change_sensor`, polling Socrata's dataset-level `rowsUpdatedAt` on an interval and only requesting a run when it's actually changed — no run gets created at all on a no-op check. Sensors are **stopped by default** (Dagster OSS convention); turn them on per-dataset in the UI under Sensors, or `dagster sensor start <name> -m opendata.definitions`.
+
+**Standalone script** — for manual/ad hoc pulls or debugging a single dataset without going through Dagster at all. Same underlying pull logic (auth, zstd compression, checkpoint/resume) as the asset, but no lake sync — that only exists in the Dagster asset wrapper. Always does a real pull regardless of whether the source actually changed, and only lands the raw `.ndjson.zst` file.
 
 ```bash
 uv run python dagster/opendata/opendata/scripts/opendata_puller.py --dataset pluto
@@ -82,6 +84,6 @@ uv run python dagster/opendata/opendata/scripts/opendata_puller.py --dataset acr
 
 - **Datasets**: ACRIS Legals/Master/Parties/References, PLUTO, ACRIS Document Control Codes — all NYC Open Data (Socrata), Manhattan-filtered where the dataset supports a borough field.
 - **Raw landing**: newline-delimited JSON, streamed through zstd compression as it's written page-by-page (`scripts/raw_data/`) — a killed pull still leaves a decodable partial file.
-- **Change detection**: before pulling, each asset checks Socrata's dataset-level `rowsUpdatedAt` against a saved watermark (`scripts/watermarks/`) and skips the fetch entirely if nothing changed. Datasets with a real per-row date field (`acris_legals`, `acris_master`) additionally use `--since` to fetch only new rows; the rest (`acris_parties`, `acris_references`, `pluto`, doc control codes) re-land in full whenever they've changed.
+- **Change detection**: a Dagster sensor per dataset (`sensors.py`) checks Socrata's dataset-level `rowsUpdatedAt` on an interval, comparing it against a cursor Dagster persists for it (no hand-rolled state file) — only requests a run when the source has actually changed. Datasets with a real per-row date field (`acris_legals`, `acris_master`) additionally pass `--since` (the sensor's last successful pull date, via run config) to fetch only new rows; the rest (`acris_parties`, `acris_references`, `pluto`, doc control codes) re-land in full whenever they've changed. The pull asset itself has no memory of "did this change" — that decision lives entirely in the sensor, so a manual materialize always does a real pull.
 - **Lake sync**: each successful pull is converted to Parquet and uploaded to S3. Incremental datasets accumulate one additive Parquet file per pull. Full-snapshot datasets instead write to `{dataset}/latest/{dataset}.parquet` (overwritten each sync — what analytics should query) plus `{dataset}/archive/{dataset}_{timestamp}.parquet` (kept for history).
 - **Not yet built**: loading pulls into Postgres. Planned to happen right after each successful pull (not gated on the lake sync), so Postgres stays fresh independent of archival cadence.
